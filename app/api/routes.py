@@ -8,6 +8,7 @@ from app.instai_dataflow import auth
 import pymysql
 import time
 import random
+import threading
 
 
 @api_bp.route("/register_user", methods = ["POST"])
@@ -312,7 +313,7 @@ def gacha(card_pool_id,character_id):
             medium_rarity_probability = card_pool["medium_rarity_probability"]
             if character["grantee"] >= 79:
                 if character["grantee_state"] == 0:
-                    random_process = random.uniform(1, 0)
+                    random_process = random.random()
                     if random_process < 0.5:
                         selectsql = "SELECT card.card_id,card.card_name,card.rarity,card.card_picture_path FROM standard_pool LEFT JOIN card ON standard_pool.card_id = card.card_id WHERE card.rarity = %s"
                         cursor.execute(
@@ -422,7 +423,7 @@ def gacha(card_pool_id,character_id):
                     return {"err": False, "gacha_result": result, "grantee":character["grantee"], "grantee_state":character["grantee_state"]}
 
             else:
-                random_process = random.uniform(1, 0)
+                random_process = random.random()
                 if random_process >= 0 and random_process <= low_rarity_probability:
                     selectsql = "SELECT card.card_id,card.card_name,card.rarity,card.card_picture_path FROM standard_pool LEFT JOIN card ON standard_pool.card_id = card.card_id WHERE card.rarity = %s"
                     cursor.execute(
@@ -467,7 +468,7 @@ def gacha(card_pool_id,character_id):
                             result["card_id"],))
                 else:
                     if character["grantee_state"] == 0:
-                        random_process = random.uniform(1, 0)
+                        random_process = random.random()
                         if random_process < 0.5:
                             selectsql = "SELECT card.card_id,card.card_name,card.rarity,card.card_picture_path FROM standard_pool LEFT JOIN card ON standard_pool.card_id = card.card_id WHERE card.rarity = %s"
                             cursor.execute(
@@ -602,23 +603,26 @@ def gacha_ten_times(card_pool_id,character_id):
     conn = get_db_connection()
     total_gacha_result = []
     try:
-        for i in range(0,10):
-            with conn.cursor() as cursor:
-                selectsql = "SELECT * FROM user_Character WHERE character_id = %s"
-                cursor.execute(
-                    selectsql, (character_id)
-                )
-                character = cursor.fetchone()
-                selectsql = "SELECT * FROM card_pool LEFT JOIN card ON card_pool.card_id = card.card_id WHERE card_pool_id = %s"
-                cursor.execute(
-                    selectsql,(card_pool_id)
-                )
-                card_pool = cursor.fetchone()
-                low_rarity_probability = card_pool["low_rarity_probability"]
-                medium_rarity_probability = card_pool["medium_rarity_probability"]
-                if character["grantee"] >= 79:
-                    if character["grantee_state"] == 0:
-                        random_process = random.uniform(1, 0)
+        with conn.cursor() as cursor:
+            selectsql = "SELECT * FROM user_Character WHERE character_id = %s"
+            cursor.execute(
+                selectsql, (character_id)
+            )
+            character = cursor.fetchone()
+            selectsql = "SELECT * FROM card_pool LEFT JOIN card ON card_pool.card_id = card.card_id WHERE card_pool_id = %s"
+            cursor.execute(
+                selectsql,(card_pool_id)
+            )
+            card_pool = cursor.fetchone()
+            low_rarity_probability = card_pool["low_rarity_probability"]
+            medium_rarity_probability = card_pool["medium_rarity_probability"]
+            character_grantee = character["grantee"]
+            character_grantee_state = character["grantee_state"]
+            for i in range(0,10):
+                print(i)
+                if character_grantee >= 79:
+                    if character_grantee_state == 0:
+                        random_process = random.random()
                         if random_process < 0.5:
                             selectsql = "SELECT card.card_id,card.card_name,card.rarity,card.card_picture_path FROM standard_pool LEFT JOIN card ON standard_pool.card_id = card.card_id WHERE card.rarity = %s"
                             cursor.execute(
@@ -626,17 +630,9 @@ def gacha_ten_times(card_pool_id,character_id):
                             )
                             result_all = cursor.fetchall()
                             result = random.choice(result_all)
-                            selectsql = "UPDATE user_Character SET grantee = 0 WHERE character_id = %s"
-                            cursor.execute(
-                                selectsql,(character_id)
-                            )
-                            selectsql = "UPDATE user_Character SET grantee_state = 1 WHERE character_id = %s"
-                            cursor.execute(
-                                selectsql,(character_id)
-                            )
-                            character = cursor.fetchone()
+                            character_grantee = 0
+                            character_grantee_state = 1
                             total_gacha_result.append(result)
-                            conn.commit()
                             continue
                         else:
                             selectsql = "SELECT card.card_id,card.card_name,card.rarity,card.card_picture_path FROM card_pool LEFT JOIN card ON card_pool.card_id = card.card_id WHERE card_pool_id = %s"
@@ -644,17 +640,9 @@ def gacha_ten_times(card_pool_id,character_id):
                                     selectsql,(card_pool_id)
                                 )
                             result = cursor.fetchone()
-                            selectsql = "UPDATE user_Character SET grantee = 0 WHERE character_id = %s"
-                            cursor.execute(
-                                selectsql,(character_id)
-                            )
-                            selectsql = "UPDATE user_Character SET grantee_state = 0 WHERE character_id = %s"
-                            cursor.execute(
-                                selectsql,(character_id)
-                            )
-                            character = cursor.fetchone()
+                            character_grantee = 0
+                            character_grantee_state = 0
                             total_gacha_result.append(result)
-                            conn.commit()
                             continue
                         
                     else:
@@ -663,21 +651,13 @@ def gacha_ten_times(card_pool_id,character_id):
                             selectsql,(card_pool_id)
                         )
                         result = cursor.fetchone()
-                        selectsql = "UPDATE user_Character SET grantee = 0 WHERE character_id = %s"
-                        cursor.execute(
-                            selectsql,(character_id)
-                        )
-                        selectsql = "UPDATE user_Character SET grantee_state = 0 WHERE character_id = %s"
-                        cursor.execute(
-                            selectsql,(character_id)
-                        )
-                        character = cursor.fetchone()
+                        character_grantee = 0
+                        character_grantee_state = 0
                         total_gacha_result.append(result)
-                        conn.commit()
                         continue
 
                 else:
-                    random_process = random.uniform(1, 0)
+                    random_process = random.random()
                     if random_process >= 0 and random_process <= low_rarity_probability:
                         selectsql = "SELECT card.card_id,card.card_name,card.rarity,card.card_picture_path FROM standard_pool LEFT JOIN card ON standard_pool.card_id = card.card_id WHERE card.rarity = %s"
                         cursor.execute(
@@ -685,6 +665,9 @@ def gacha_ten_times(card_pool_id,character_id):
                         )
                         result_all = cursor.fetchall()
                         result = random.choice(result_all)
+                        total_gacha_result.append(result)
+                        character_grantee = character_grantee + 1
+                        continue
                     elif random_process >= low_rarity_probability and random_process <= low_rarity_probability+medium_rarity_probability:
                         selectsql = "SELECT card.card_id,card.card_name,card.rarity,card.card_picture_path FROM standard_pool LEFT JOIN card ON standard_pool.card_id = card.card_id WHERE card.rarity = %s"
                         cursor.execute(
@@ -692,9 +675,12 @@ def gacha_ten_times(card_pool_id,character_id):
                         )
                         result_all = cursor.fetchall()
                         result = random.choice(result_all)
+                        total_gacha_result.append(result)
+                        character_grantee = character_grantee + 1
+                        continue
                     else:
-                        if character["grantee_state"] == 0:
-                            random_process = random.uniform(1, 0)
+                        if character_grantee_state == 0:
+                            random_process = random.random()
                             if random_process < 0.5:
                                 selectsql = "SELECT card.card_id,card.card_name,card.rarity,card.card_picture_path FROM standard_pool LEFT JOIN card ON standard_pool.card_id = card.card_id WHERE card.rarity = %s"
                                 cursor.execute(
@@ -702,92 +688,50 @@ def gacha_ten_times(card_pool_id,character_id):
                                 )
                                 result_all = cursor.fetchall()
                                 result = random.choice(result_all)
-                                selectsql = "UPDATE user_Character SET grantee = 0 WHERE character_id = %s"
-                                cursor.execute(
-                                    selectsql,(character_id)
-                                )
-                                selectsql = "UPDATE user_Character SET grantee_state = 1 WHERE character_id = %s"
-                                cursor.execute(
-                                    selectsql,(character_id)
-                                )
-                                character = cursor.fetchone()
+                                character_grantee = 0
+                                character_grantee_state = 1
                                 total_gacha_result.append(result)
-                                conn.commit()
                                 continue
                             else:
                                 selectsql = "SELECT card.card_id,card.card_name,card.rarity,card.card_picture_path FROM card_pool LEFT JOIN card ON card_pool.card_id = card.card_id WHERE card_pool_id = %s"
                                 cursor.execute(
-                                    selectsql,(card_pool_id)
-                                )
+                                        selectsql,(card_pool_id)
+                                    )
                                 result = cursor.fetchone()
-                                selectsql = "UPDATE user_Character SET grantee = 0 WHERE character_id = %s"
-                                cursor.execute(
-                                    selectsql,(character_id)
-                                )
-                                selectsql = "UPDATE user_Character SET grantee_state = 0 WHERE character_id = %s"
-                                cursor.execute(
-                                    selectsql,(character_id)
-                                )
-                                character = cursor.fetchone()
+                                character_grantee = 0
+                                character_grantee_state = 0
                                 total_gacha_result.append(result)
-                                conn.commit()
                                 continue
-                            
+                        
                         else:
                             selectsql = "SELECT card.card_id,card.card_name,card.rarity,card.card_picture_path FROM card_pool LEFT JOIN card ON card_pool.card_id = card.card_id WHERE card_pool_id = %s"
                             cursor.execute(
                                 selectsql,(card_pool_id)
                             )
                             result = cursor.fetchone()
-                            selectsql = "UPDATE user_Character SET grantee = 0 WHERE character_id = %s"
-                            cursor.execute(
-                                selectsql,(character_id)
-                            )
-                            selectsql = "UPDATE user_Character SET grantee_state = 0 WHERE character_id = %s"
-                            cursor.execute(
-                                selectsql,(character_id)
-                            )
-                            character = cursor.fetchone()
+                            character_grantee = 0
+                            character_grantee_state = 0
                             total_gacha_result.append(result)
-                            conn.commit()
                             continue
-                    
-                    selectsql = "UPDATE user_Character SET grantee = grantee + 1 WHERE character_id = %s;"
-                    cursor.execute(
-                        selectsql,(character_id)
-                    )
-                
-                selectsql = "SELECT * FROM user_Character WHERE character_id = %s"
-                cursor.execute(
-                    selectsql, (character_id)
-                )
-                character = cursor.fetchone()
-                total_gacha_result.append(result)
+            updatesql = "UPDATE user_Character SET grantee = %s WHERE character_id = %s"
+            cursor.execute(
+                updatesql,(character_grantee,character_id)
+            )
+            updatesql = "UPDATE user_Character SET grantee_state = %s WHERE character_id = %s"
+            cursor.execute(
+                updatesql,(character_grantee_state,character_id)
+            )
+            selectsql = "SELECT user_Character.grantee,user_Character.grantee_state FROM user_Character WHERE character_id = %s"
+            cursor.execute(
+                selectsql,(character_id)
+            )
+            character = cursor.fetchone()
+            print('update grantee success')
+            print(total_gacha_result)
+            conn.commit()
 
-        with conn.cursor() as cursor:
-            for i in range(0,10):
-                print(i)
-                insert_sql = "INSERT INTO gacha_history (gacha_time, character_id, card_id) VALUES (%s, %s, %s)"
-                cursor.execute(insert_sql,(
-                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                    character_id,
-                    total_gacha_result[i]["card_id"],))
-                print(i)
-                search_sql = "SELECT * FROM backpack WHERE character_id = %s and card_id = %s"
-                cursor.execute(search_sql,(
-                    character_id,
-                    total_gacha_result[i]["card_id"],))
-                search_result = cursor.fetchone()
-                print(i)
-                if search_result == None:
-                    insert_sql = "INSERT INTO backpack (character_id, card_id) VALUES (%s, %s)"
-                    cursor.execute(insert_sql,(
-                        character_id,
-                        total_gacha_result[i]["card_id"],))
+            threading.Thread(target=insert_gacha_result, args=(character_id,total_gacha_result)).start()
 
-            
-        
-        conn.commit()
     except pymysql.MySQLError as e:
         print(f"Error: {e}")
         return {"err": True, "err_msg": "get character failed"}
@@ -795,3 +739,33 @@ def gacha_ten_times(card_pool_id,character_id):
         conn.close()
 
     return {"err": False, "gacha_result": total_gacha_result, "grantee":character["grantee"], "grantee_state":character["grantee_state"]}
+
+def insert_gacha_result(character_id,total_gacha_result):
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            for i in range(0,10):
+                insert_sql = "INSERT INTO gacha_history (gacha_time, character_id, card_id) VALUES (%s, %s, %s)"
+                cursor.execute(insert_sql,(
+                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                    character_id,
+                    total_gacha_result[i]["card_id"],))
+
+                search_sql = "SELECT * FROM backpack WHERE character_id = %s and card_id = %s"
+                cursor.execute(search_sql,(
+                    character_id,
+                    total_gacha_result[i]["card_id"],))
+                search_result = cursor.fetchone()
+
+                if search_result == None:
+                    insert_sql = "INSERT INTO backpack (character_id, card_id) VALUES (%s, %s)"
+                    cursor.execute(insert_sql,(
+                        character_id,
+                        total_gacha_result[i]["card_id"],))
+            
+            conn.commit()
+    except pymysql.MySQLError as e:
+        print(f"Error: {e}")
+        return {"err": True, "err_msg": "get character failed"}
+    finally:
+        conn.close()
